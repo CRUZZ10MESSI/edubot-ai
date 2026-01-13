@@ -1,24 +1,92 @@
-from flask import Flask, request, jsonify, render_template_string
-from groq import Groq
-import wikipedia
-import html
-
-# -------------------- APP SETUP --------------------
-app = Flask(__name__)
-app.secret_key = "edubot_secret"
-
-# -------------------- GROQ API KEY --------------------
+from flask import Flask, request, jsonify
 import os
+from groq import Groq
+
+# ---------------- CONFIG ----------------
+app = Flask(__name__)
+
+# Load API Key from environment
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
-    raise RuntimeError("GROQ_API_KEY not set")
+    raise RuntimeError("Please set GROQ_API_KEY as an environment variable")
+
 client = Groq(api_key=GROQ_API_KEY)
 
-# Wikipedia setup
-wikipedia.set_lang("en")
-wikipedia.set_user_agent("EduBot/1.0 (CBSE AI Project)")
+# ---------------- AI FUNCTION ----------------
+def groq_answer(question):
+    try:
+        system_prompt = """
+You are EduBot, an AI tutor for CBSE Class 11 and 12 students.
 
-# -------------------- MODERN CHAT UI --------------------
+SUBJECTS:
+- Physics
+- Chemistry
+- Computer Science
+
+TASK:
+First identify the subject and question type.
+
+QUESTION TYPES:
+1. Theory
+2. Numerical
+3. Programming (Python)
+
+RULES:
+
+FOR NUMERICAL QUESTIONS:
+- Solve step-by-step
+- Use this format:
+  Given:
+  Formula:
+  Substitution:
+  Calculation:
+  Final Answer (with unit)
+
+FOR PYTHON PROGRAMMING QUESTIONS:
+- Generate correct Python code
+- Use triple backticks with python
+- Follow CBSE syllabus (Class 11–12)
+- Add brief explanation after code
+
+FOR THEORY QUESTIONS:
+- Explain clearly
+- Exam-oriented language
+- Simple English
+
+IMPORTANT:
+- NEVER refuse numericals or Python programs
+- NEVER redirect to Wikipedia
+- Answer ONLY subject-related questions
+"""
+
+        response = client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": question}
+            ],
+            temperature=0.2,
+            max_tokens=1000
+        )
+
+        return response.choices[0].message.content.strip()
+
+    except Exception as e:
+        return f"Error occurred: {e}"
+
+# ---------------- ROUTES ----------------
+@app.route("/")
+def home():
+    return HTML_PAGE
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    data = request.get_json()
+    question = data.get("message", "")
+    answer = groq_answer(question)
+    return jsonify({"response": answer})
+
+# ---------------- FRONTEND ----------------
 HTML_PAGE = """
 <!DOCTYPE html>
 <html>
@@ -27,20 +95,10 @@ HTML_PAGE = """
 <title>EduBot AI</title>
 
 <style>
-:root {
-    --bg: #0b1020;
-    --panel: #111827;
-    --bot: #1f2937;
-    --user: #2563eb;
-    --code: #020617;
-    --text: #e5e7eb;
-}
-* { box-sizing: border-box; }
-
 body {
     margin: 0;
-    font-family: "Segoe UI", sans-serif;
-    background: var(--bg);
+    font-family: Segoe UI, sans-serif;
+    background: #0f172a;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -48,13 +106,12 @@ body {
 }
 
 .chat {
-    width: 430px;
-    height: 650px;
-    background: var(--panel);
+    width: 420px;
+    height: 640px;
+    background: #020617;
     border-radius: 18px;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 30px 80px rgba(0,0,0,0.6);
     overflow: hidden;
 }
 
@@ -62,8 +119,8 @@ body {
     padding: 16px;
     background: linear-gradient(135deg, #2563eb, #4f46e5);
     color: white;
-    font-weight: 600;
     text-align: center;
+    font-weight: 600;
 }
 
 .messages {
@@ -77,25 +134,23 @@ body {
     padding: 10px 14px;
     border-radius: 14px;
     margin-bottom: 10px;
-    animation: fadeIn 0.25s ease;
-    line-height: 1.45;
     white-space: pre-wrap;
 }
 
-.bot {
-    background: var(--bot);
-    color: var(--text);
-    align-self: flex-start;
-}
-
 .user {
-    background: var(--user);
+    background: #2563eb;
     color: white;
     align-self: flex-end;
 }
 
+.bot {
+    background: #1e293b;
+    color: #e5e7eb;
+    align-self: flex-start;
+}
+
 .code-block {
-    background: var(--code);
+    background: #020617;
     color: #c7d2fe;
     font-family: Consolas, monospace;
     font-size: 13px;
@@ -103,7 +158,6 @@ body {
     padding: 12px;
     margin-top: 8px;
     position: relative;
-    overflow-x: auto;
 }
 
 .copy-btn {
@@ -114,15 +168,15 @@ body {
     padding: 4px 8px;
     border: none;
     border-radius: 6px;
-    cursor: pointer;
     background: #2563eb;
     color: white;
+    cursor: pointer;
 }
 
 .input-area {
     display: flex;
     padding: 12px;
-    border-top: 1px solid #1f2937;
+    border-top: 1px solid #1e293b;
 }
 
 input {
@@ -133,7 +187,7 @@ input {
     outline: none;
 }
 
-button.send {
+button {
     margin-left: 8px;
     background: #2563eb;
     color: white;
@@ -142,26 +196,21 @@ button.send {
     padding: 0 16px;
     cursor: pointer;
 }
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(5px); }
-    to { opacity: 1; transform: translateY(0); }
-}
 </style>
 </head>
 
 <body>
 <div class="chat">
-    <div class="header">🤖 EduBot – AI Study Assistant</div>
+    <div class="header">🤖 EduBot – AI Learning Assistant</div>
     <div class="messages" id="messages">
         <div class="msg bot">
-            Hi! I can solve numericals and write Python programs for you 📘💻
+            Hello! I can solve numericals and write Python programs 📘💻
         </div>
     </div>
 
     <div class="input-area">
         <input id="input" placeholder="Ask a question..." />
-        <button class="send" onclick="send()">Send</button>
+        <button onclick="send()">Send</button>
     </div>
 </div>
 
@@ -181,13 +230,12 @@ function addUserMsg(text) {
 }
 
 function addBotMsg(text) {
-    const container = document.createElement("div");
-    container.className = "msg bot";
+    const div = document.createElement("div");
+    div.className = "msg bot";
 
-    // Detect code blocks
     if (text.includes("```")) {
         const parts = text.split("```");
-        container.innerText = parts[0];
+        div.innerText = parts[0];
 
         const code = document.createElement("div");
         code.className = "code-block";
@@ -203,21 +251,23 @@ function addBotMsg(text) {
         };
 
         code.appendChild(btn);
-        container.appendChild(code);
+        div.appendChild(code);
     } else {
-        container.innerText = text;
+        div.innerText = text;
     }
 
-    messages.appendChild(container);
+    messages.appendChild(div);
     messages.scrollTop = messages.scrollHeight;
-    return container;
 }
 
 async function send() {
     if (!input.value.trim()) return;
 
     addUserMsg(input.value);
-    const typing = addBotMsg("EduBot is thinking…");
+    const temp = document.createElement("div");
+    temp.className = "msg bot";
+    temp.innerText = "EduBot is thinking...";
+    messages.appendChild(temp);
 
     const question = input.value;
     input.value = "";
@@ -225,15 +275,15 @@ async function send() {
     try {
         const res = await fetch("/chat", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: question })
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({message: question})
         });
 
         const data = await res.json();
-        typing.remove();
+        temp.remove();
         addBotMsg(data.response);
     } catch {
-        typing.innerText = "Something went wrong.";
+        temp.innerText = "Error connecting to server.";
     }
 }
 </script>
@@ -241,93 +291,6 @@ async function send() {
 </html>
 """
 
-
-# -------------------- AI LOGIC --------------------
-def groq_answer(question):
-    try:
-        system_prompt = """
-You are EduBot, an advanced AI tutor for Class 12 CBSE students.
-
-First, identify:
-1. SUBJECT: Physics / Chemistry / Computer Science
-2. QUESTION TYPE:
-   - Conceptual / Theory
-   - Numerical / Problem-solving
-   - Programming (Python)
-
-Then respond using the correct format:
-
-FOR PHYSICS & CHEMISTRY NUMERICALS:
-- Write: Given:
-- Write: Formula used:
-- Show substitution
-- Step-by-step calculation
-- Final Answer (with unit)
-- Use CBSE exam style
-
-FOR CONCEPTUAL QUESTIONS:
-- Explain clearly
-- Use examples
-- Use diagrams-in-words if needed
-
-FOR COMPUTER SCIENCE (PYTHON PROGRAMS):
-- Write clean, correct Python code
-- Follow Class 11–12 CBSE syllabus
-- Add comments in code
-- After code, explain briefly
-
-ONLY answer questions related to:
-- Physics
-- Chemistry
-- Computer Science
-
-If outside syllabus, politely refuse.
-
-Always be accurate, exam-oriented, and student-friendly.
-"""
-
-        response = client.chat.completions.create(
-            model="llama3-8b-8192",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": question}
-            ],
-            temperature=0.35,
-            max_tokens=900
-        )
-
-        return response.choices[0].message.content.strip()
-
-    except Exception:
-        return None
-
-
-
-def wiki_fallback(topic):
-    try:
-        return wikipedia.summary(topic, sentences=2)
-    except:
-        return "I couldn’t find information on that topic. Try something more specific."
-
-# -------------------- ROUTES --------------------
-@app.route("/")
-def home():
-    return render_template_string(HTML_PAGE)
-
-@app.route("/chat", methods=["POST"])
-def chat():
-    data = request.get_json(silent=True)
-    if not data or "message" not in data:
-        return jsonify({"response": "Invalid input."})
-
-    question = html.escape(data["message"])
-    reply = groq_answer(question)
-
-    if not reply:
-        reply = wiki_fallback(question)
-
-    return jsonify({"response": reply})
-
-# -------------------- RUN --------------------
+# ---------------- RUN ----------------
 if __name__ == "__main__":
-    app.run(debug=False)
+    app.run(debug=True)
