@@ -25,12 +25,14 @@ HTML_PAGE = """
 <head>
 <meta charset="UTF-8">
 <title>EduBot AI</title>
+
 <style>
 :root {
     --bg: #0b1020;
     --panel: #111827;
     --bot: #1f2937;
     --user: #2563eb;
+    --code: #020617;
     --text: #e5e7eb;
 }
 * { box-sizing: border-box; }
@@ -46,10 +48,10 @@ body {
 }
 
 .chat {
-    width: 420px;
-    height: 620px;
+    width: 430px;
+    height: 650px;
     background: var(--panel);
-    border-radius: 16px;
+    border-radius: 18px;
     display: flex;
     flex-direction: column;
     box-shadow: 0 30px 80px rgba(0,0,0,0.6);
@@ -71,12 +73,13 @@ body {
 }
 
 .msg {
-    max-width: 80%;
+    max-width: 90%;
     padding: 10px 14px;
     border-radius: 14px;
     margin-bottom: 10px;
     animation: fadeIn 0.25s ease;
-    line-height: 1.4;
+    line-height: 1.45;
+    white-space: pre-wrap;
 }
 
 .bot {
@@ -91,9 +94,29 @@ body {
     align-self: flex-end;
 }
 
-.typing {
-    font-style: italic;
-    opacity: 0.8;
+.code-block {
+    background: var(--code);
+    color: #c7d2fe;
+    font-family: Consolas, monospace;
+    font-size: 13px;
+    border-radius: 10px;
+    padding: 12px;
+    margin-top: 8px;
+    position: relative;
+    overflow-x: auto;
+}
+
+.copy-btn {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    font-size: 11px;
+    padding: 4px 8px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #2563eb;
+    color: white;
 }
 
 .input-area {
@@ -108,10 +131,9 @@ input {
     border-radius: 10px;
     border: none;
     outline: none;
-    font-size: 14px;
 }
 
-button {
+button.send {
     margin-left: 8px;
     background: #2563eb;
     color: white;
@@ -119,10 +141,6 @@ button {
     border-radius: 10px;
     padding: 0 16px;
     cursor: pointer;
-}
-
-button:hover {
-    background: #1d4ed8;
 }
 
 @keyframes fadeIn {
@@ -137,13 +155,13 @@ button:hover {
     <div class="header">🤖 EduBot – AI Study Assistant</div>
     <div class="messages" id="messages">
         <div class="msg bot">
-            Hi! I can help you with Physics, Chemistry, and Computer Science 📘
+            Hi! I can solve numericals and write Python programs for you 📘💻
         </div>
     </div>
 
     <div class="input-area">
-        <input id="input" placeholder="Ask your question..." />
-        <button onclick="send()">Send</button>
+        <input id="input" placeholder="Ask a question..." />
+        <button class="send" onclick="send()">Send</button>
     </div>
 </div>
 
@@ -155,20 +173,51 @@ input.addEventListener("keydown", e => {
     if (e.key === "Enter") send();
 });
 
-function addMsg(text, cls) {
+function addUserMsg(text) {
     const div = document.createElement("div");
-    div.className = "msg " + cls;
+    div.className = "msg user";
     div.innerText = text;
     messages.appendChild(div);
+}
+
+function addBotMsg(text) {
+    const container = document.createElement("div");
+    container.className = "msg bot";
+
+    // Detect code blocks
+    if (text.includes("```")) {
+        const parts = text.split("```");
+        container.innerText = parts[0];
+
+        const code = document.createElement("div");
+        code.className = "code-block";
+        code.innerText = parts[1].replace("python", "").trim();
+
+        const btn = document.createElement("button");
+        btn.className = "copy-btn";
+        btn.innerText = "Copy";
+        btn.onclick = () => {
+            navigator.clipboard.writeText(code.innerText);
+            btn.innerText = "Copied!";
+            setTimeout(() => btn.innerText = "Copy", 1500);
+        };
+
+        code.appendChild(btn);
+        container.appendChild(code);
+    } else {
+        container.innerText = text;
+    }
+
+    messages.appendChild(container);
     messages.scrollTop = messages.scrollHeight;
-    return div;
+    return container;
 }
 
 async function send() {
     if (!input.value.trim()) return;
 
-    addMsg(input.value, "user");
-    const typing = addMsg("EduBot is thinking…", "bot typing");
+    addUserMsg(input.value);
+    const typing = addBotMsg("EduBot is thinking…");
 
     const question = input.value;
     input.value = "";
@@ -181,9 +230,10 @@ async function send() {
         });
 
         const data = await res.json();
-        typing.innerText = data.response;
+        typing.remove();
+        addBotMsg(data.response);
     } catch {
-        typing.innerText = "Sorry, something went wrong.";
+        typing.innerText = "Something went wrong.";
     }
 }
 </script>
@@ -191,31 +241,66 @@ async function send() {
 </html>
 """
 
+
 # -------------------- AI LOGIC --------------------
 def groq_answer(question):
     try:
+        system_prompt = """
+You are EduBot, an advanced AI tutor for Class 12 CBSE students.
+
+First, identify:
+1. SUBJECT: Physics / Chemistry / Computer Science
+2. QUESTION TYPE:
+   - Conceptual / Theory
+   - Numerical / Problem-solving
+   - Programming (Python)
+
+Then respond using the correct format:
+
+FOR PHYSICS & CHEMISTRY NUMERICALS:
+- Write: Given:
+- Write: Formula used:
+- Show substitution
+- Step-by-step calculation
+- Final Answer (with unit)
+- Use CBSE exam style
+
+FOR CONCEPTUAL QUESTIONS:
+- Explain clearly
+- Use examples
+- Use diagrams-in-words if needed
+
+FOR COMPUTER SCIENCE (PYTHON PROGRAMS):
+- Write clean, correct Python code
+- Follow Class 11–12 CBSE syllabus
+- Add comments in code
+- After code, explain briefly
+
+ONLY answer questions related to:
+- Physics
+- Chemistry
+- Computer Science
+
+If outside syllabus, politely refuse.
+
+Always be accurate, exam-oriented, and student-friendly.
+"""
+
         response = client.chat.completions.create(
             model="llama3-8b-8192",
             messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are EduBot, a friendly AI chatbot and study assistant.\n"
-                        "You can have normal English conversations like a real chatbot.\n"
-                        "If the user asks casual questions (hi, how are you, jokes, etc.), respond naturally.\n"
-                        "If the user asks academic questions (Physics, Chemistry, Computer Science), "
-                        "explain clearly at Class 12 CBSE level with examples.\n"
-                        "Always be polite, engaging, and easy to understand."
-                    )
-                },
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": question}
             ],
-            temperature=0.6,
-            max_tokens=600
+            temperature=0.35,
+            max_tokens=900
         )
+
         return response.choices[0].message.content.strip()
+
     except Exception:
         return None
+
 
 
 def wiki_fallback(topic):
