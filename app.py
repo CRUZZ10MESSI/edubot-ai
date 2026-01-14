@@ -2,10 +2,9 @@ from flask import Flask, request, jsonify
 import os
 from groq import Groq
 
-# ---------------- CONFIG ----------------
+# ---------------- APP SETUP ----------------
 app = Flask(__name__)
 
-# Load API Key from environment
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
     raise RuntimeError("Please set GROQ_API_KEY as an environment variable")
@@ -23,19 +22,16 @@ SUBJECTS:
 - Chemistry
 - Computer Science
 
-TASK:
-First identify the subject and question type.
-
 QUESTION TYPES:
-1. Theory
-2. Numerical
-3. Programming (Python)
+- Theory
+- Numerical
+- Programming (Python)
 
 RULES:
 
 FOR NUMERICAL QUESTIONS:
 - Solve step-by-step
-- Use this format:
+- Use format:
   Given:
   Formula:
   Substitution:
@@ -44,19 +40,17 @@ FOR NUMERICAL QUESTIONS:
 
 FOR PYTHON PROGRAMMING QUESTIONS:
 - Generate correct Python code
-- Use triple backticks with python
-- Follow CBSE syllabus (Class 11–12)
-- Add brief explanation after code
+- Wrap code in triple backticks with python
+- Follow CBSE syllabus
+- Add brief explanation
 
 FOR THEORY QUESTIONS:
-- Explain clearly
-- Exam-oriented language
-- Simple English
+- Clear and exam-oriented explanation
 
 IMPORTANT:
-- NEVER refuse numericals or Python programs
-- NEVER redirect to Wikipedia
-- Answer ONLY subject-related questions
+- Never refuse numericals or Python programs
+- Do not redirect to Wikipedia
+- Answer only subject-related questions
 """
 
         response = client.chat.completions.create(
@@ -97,7 +91,7 @@ HTML_PAGE = """
 <style>
 body {
     margin: 0;
-    font-family: Segoe UI, sans-serif;
+    font-family: "Segoe UI", sans-serif;
     background: #0f172a;
     display: flex;
     justify-content: center;
@@ -106,13 +100,14 @@ body {
 }
 
 .chat {
-    width: 420px;
-    height: 640px;
+    width: 440px;
+    height: 680px;
     background: #020617;
     border-radius: 18px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    box-shadow: 0 25px 70px rgba(0,0,0,0.6);
 }
 
 .header {
@@ -121,6 +116,12 @@ body {
     color: white;
     text-align: center;
     font-weight: 600;
+    animation: glow 3s infinite alternate;
+}
+
+@keyframes glow {
+    from { box-shadow: 0 0 6px #2563eb; }
+    to { box-shadow: 0 0 14px #4f46e5; }
 }
 
 .messages {
@@ -135,6 +136,12 @@ body {
     border-radius: 14px;
     margin-bottom: 10px;
     white-space: pre-wrap;
+    animation: slideFade 0.3s ease-out;
+}
+
+@keyframes slideFade {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .user {
@@ -158,6 +165,12 @@ body {
     padding: 12px;
     margin-top: 8px;
     position: relative;
+    overflow-x: auto;
+}
+
+.code-block pre {
+    margin: 0;
+    white-space: pre;
 }
 
 .copy-btn {
@@ -195,6 +208,29 @@ button {
     border-radius: 10px;
     padding: 0 16px;
     cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 10px rgba(0,0,0,0.3);
+}
+
+button:active {
+    transform: scale(0.97);
+}
+
+.typing span {
+    animation: blink 1.4s infinite both;
+}
+
+.typing span:nth-child(2) { animation-delay: 0.2s; }
+.typing span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes blink {
+    0% { opacity: .2; }
+    20% { opacity: 1; }
+    100% { opacity: .2; }
 }
 </style>
 </head>
@@ -237,37 +273,43 @@ function addBotMsg(text) {
         const parts = text.split("```");
         div.innerText = parts[0];
 
+        const codeText = parts[1].replace("python", "").trim();
+
         const code = document.createElement("div");
         code.className = "code-block";
-        code.innerText = parts[1].replace("python", "").trim();
+
+        const pre = document.createElement("pre");
+        pre.innerText = codeText;
 
         const btn = document.createElement("button");
         btn.className = "copy-btn";
         btn.innerText = "Copy";
         btn.onclick = () => {
-            navigator.clipboard.writeText(code.innerText);
+            navigator.clipboard.writeText(codeText);
             btn.innerText = "Copied!";
             setTimeout(() => btn.innerText = "Copy", 1500);
         };
 
         code.appendChild(btn);
+        code.appendChild(pre);
         div.appendChild(code);
     } else {
         div.innerText = text;
     }
 
     messages.appendChild(div);
-    messages.scrollTop = messages.scrollHeight;
+    messages.scrollTo({ top: messages.scrollHeight, behavior: "smooth" });
 }
 
 async function send() {
     if (!input.value.trim()) return;
 
     addUserMsg(input.value);
-    const temp = document.createElement("div");
-    temp.className = "msg bot";
-    temp.innerText = "EduBot is thinking...";
-    messages.appendChild(temp);
+
+    const typing = document.createElement("div");
+    typing.className = "msg bot";
+    typing.innerHTML = 'EduBot is typing <span class="typing"><span>.</span><span>.</span><span>.</span></span>';
+    messages.appendChild(typing);
 
     const question = input.value;
     input.value = "";
@@ -280,10 +322,10 @@ async function send() {
         });
 
         const data = await res.json();
-        temp.remove();
+        typing.remove();
         addBotMsg(data.response);
     } catch {
-        temp.innerText = "Error connecting to server.";
+        typing.innerText = "Error connecting to server.";
     }
 }
 </script>
@@ -294,4 +336,3 @@ async function send() {
 # ---------------- RUN ----------------
 if __name__ == "__main__":
     app.run(debug=True)
-
