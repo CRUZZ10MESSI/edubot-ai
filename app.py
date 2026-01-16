@@ -27,8 +27,6 @@ QUESTION TYPES:
 - Numerical
 - Programming (Python)
 
-RULES:
-
 FOR NUMERICAL QUESTIONS:
 - Solve step-by-step
 - Use format:
@@ -39,7 +37,7 @@ FOR NUMERICAL QUESTIONS:
   Final Answer (with unit)
 
 FOR PYTHON PROGRAMMING QUESTIONS:
-- Generate correct Python code
+- Generate valid Python code
 - Wrap code in triple backticks with python
 - Follow CBSE syllabus
 - Add brief explanation
@@ -48,9 +46,7 @@ FOR THEORY QUESTIONS:
 - Clear and exam-oriented explanation
 
 IMPORTANT:
-- Never refuse numericals or Python programs
-- Do not redirect to Wikipedia
-- Answer only subject-related questions
+- Always answer subject-related questions
 """
 
         response = client.chat.completions.create(
@@ -100,8 +96,9 @@ body {
 }
 
 .chat {
-    width: 440px;
-    height: 680px;
+    width: 100%;
+    max-width: 820px;
+    height: 85vh;
     background: #020617;
     border-radius: 18px;
     display: flex;
@@ -126,8 +123,9 @@ body {
 
 .messages {
     flex: 1;
-    padding: 14px;
+    padding: 16px;
     overflow-y: auto;
+    scroll-behavior: smooth;
 }
 
 .msg {
@@ -188,8 +186,9 @@ body {
 
 .input-area {
     display: flex;
-    padding: 12px;
+    padding: 14px;
     border-top: 1px solid #1e293b;
+    background: #020617;
 }
 
 input {
@@ -238,9 +237,10 @@ button:active {
 <body>
 <div class="chat">
     <div class="header">🤖 EduBot – AI Learning Assistant</div>
+
     <div class="messages" id="messages">
         <div class="msg bot">
-            Hello! I can solve numericals and write Python programs 📘💻
+            Hello! I can answer theory questions, solve numericals, and write Python programs 📘💻
         </div>
     </div>
 
