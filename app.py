@@ -28,8 +28,7 @@ QUESTION TYPES:
 - Programming (Python)
 
 FOR NUMERICAL QUESTIONS:
-- Solve step-by-step
-- Use format:
+- Solve step-by-step using:
   Given:
   Formula:
   Substitution:
@@ -37,7 +36,7 @@ FOR NUMERICAL QUESTIONS:
   Final Answer (with unit)
 
 FOR PYTHON PROGRAMMING QUESTIONS:
-- Generate valid Python code
+- Generate correct Python code
 - Wrap code in triple backticks with python
 - Follow CBSE syllabus
 - Add brief explanation
@@ -47,19 +46,36 @@ FOR THEORY QUESTIONS:
 
 IMPORTANT:
 - Always answer subject-related questions
+- If answer is long, stay concise but complete
 """
 
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": question}
-            ],
-            temperature=0.2,
-            max_tokens=1000
-        )
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": question}
+        ]
 
-        return response.choices[0].message.content.strip()
+        final_answer = ""
+
+        for _ in range(3):  # max 3 continuations
+            response = client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=messages,
+                temperature=0.2,
+                max_tokens=2000
+            )
+
+            part = response.choices[0].message.content.strip()
+            final_answer += part + "\n"
+
+            # If response seems complete, break
+            if part.endswith((".", ")", "}", "```", "Answer")):
+                break
+
+            # Ask model to continue
+            messages.append({"role": "assistant", "content": part})
+            messages.append({"role": "user", "content": "Continue from where you stopped."})
+
+        return final_answer.strip()
 
     except Exception as e:
         return f"Error occurred: {e}"
@@ -207,22 +223,11 @@ button {
     border-radius: 10px;
     padding: 0 16px;
     cursor: pointer;
-    transition: transform 0.1s ease, box-shadow 0.1s ease;
-}
-
-button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 5px 10px rgba(0,0,0,0.3);
-}
-
-button:active {
-    transform: scale(0.97);
 }
 
 .typing span {
     animation: blink 1.4s infinite both;
 }
-
 .typing span:nth-child(2) { animation-delay: 0.2s; }
 .typing span:nth-child(3) { animation-delay: 0.4s; }
 
@@ -240,7 +245,7 @@ button:active {
 
     <div class="messages" id="messages">
         <div class="msg bot">
-            Hello! I can answer theory questions, solve numericals, and write Python programs 📘💻
+            Hello! I can solve numericals, explain theory, and write Python programs 📘💻
         </div>
     </div>
 
